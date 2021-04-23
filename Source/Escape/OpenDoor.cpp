@@ -3,6 +3,8 @@
 
 #include "OpenDoor.h"
 
+#include "Components/AudioComponent.h"
+
 // Sets default values for this component's properties
 UOpenDoor::UOpenDoor()
 {
@@ -22,22 +24,18 @@ void UOpenDoor::BeginPlay()
 	InitialYaw = GetOwner()->GetActorRotation().Yaw;
 	OpenTargetYaw = GetOwner()->GetActorRotation().Yaw + 90;
 	CloseTargetYaw = InitialYaw;
+	AudioComponent = GetOwner()->FindComponentByClass<UAudioComponent>();
 
-	if (!PressurePlate)
-	{
-		UE_LOG(LogTemp, Error, TEXT("%s has no Pressure Plate set."), *GetOwner()->GetName());
-	}
-
-	ActorThatOpen = GetWorld()->GetFirstPlayerController()->GetPawn();
+	CheckPressurePlate();
+	CheckAudioComponent();
 }
-
 
 // Called every frame
 void UOpenDoor::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
-	if (PressurePlate && PressurePlate->IsOverlappingActor(ActorThatOpen))
+	if (TotalMassOfActors() >= MassThreshold)
 	{
 		DoorLastOpen = GetWorld()->GetTimeSeconds();
 		OpenDoor();
@@ -51,17 +49,63 @@ void UOpenDoor::TickComponent(float DeltaTime, ELevelTick TickType, FActorCompon
 	}
 }
 
-void UOpenDoor::OpenDoor() const
+void UOpenDoor::OpenDoor()
 {
 	FRotator CurrentRotation = GetOwner()->GetActorRotation();
 	CurrentRotation.Yaw = FMath::FInterpTo(CurrentRotation.Yaw, OpenTargetYaw, GetWorld()->GetDeltaSeconds(), DoorSpeed);
 	GetOwner()->SetActorRotation(CurrentRotation);
+	if (bPlayDoorSound)
+	{
+		AudioComponent->Play();
+		bPlayDoorSound = false;
+	}
 }
 
-void UOpenDoor::CloseDoor() const
+void UOpenDoor::CloseDoor()
 {
 	FRotator CurrentRotation = GetOwner()->GetActorRotation();
 	CurrentRotation.Yaw = FMath::FInterpTo(CurrentRotation.Yaw,CloseTargetYaw, GetWorld()->GetDeltaSeconds(), DoorSpeed);
 	GetOwner()->SetActorRotation(CurrentRotation);
+	if (!bPlayDoorSound)
+	{
+		AudioComponent->Play();
+		bPlayDoorSound = true;
+	}
+}
+
+float UOpenDoor::TotalMassOfActors() const
+{
+	float TotalMass = 0.f;
+	TArray<AActor*> OverlappingActors ;
+
+	PressurePlate->GetOverlappingActors(OverlappingActors);
+	
+	
+	for (auto OverlappingActor : OverlappingActors)
+	{
+		TArray<UPrimitiveComponent*> Components;
+		OverlappingActor->GetComponents(Components);
+		for (auto Component : Components)
+		{
+			TotalMass += Component->GetMass();
+		}
+	}
+
+	return TotalMass;
+}
+
+void UOpenDoor::CheckPressurePlate() const
+{
+	if (!PressurePlate)
+	{
+		UE_LOG(LogTemp, Error, TEXT("%s has no Pressure Plate set."), *GetOwner()->GetName());
+	}
+}
+void UOpenDoor::CheckAudioComponent() const
+{
+	if (!AudioComponent)
+	{
+		UE_LOG(LogTemp, Error, TEXT("%s has no Audio Component set."), *GetOwner()->GetName());
+	}
 }
 
