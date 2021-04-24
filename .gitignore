@@ -135,6 +135,9 @@ Build/*
 Build/*/**
 !Build/*/PakBlacklist*.txt
 
+# Others assets
+Content/MedievalDungeon/*
+
 # Don't ignore icon files in Build
 !Build/**/*.ico
 
